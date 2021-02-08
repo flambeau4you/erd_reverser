@@ -24,7 +24,7 @@ shell -> ERD Reverser
 
 ## Features
 
-* Make PlantUML files.
+* Make PlantUML ERD files.
 
 ## Users
 
