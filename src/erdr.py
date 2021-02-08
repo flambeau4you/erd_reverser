@@ -20,6 +20,7 @@ import json
 import re
 import sys
 import codecs
+from mariadb_database import MariadbDatabase 
 
 DB_MARIADB = 'mariadb_database'
 
@@ -34,6 +35,47 @@ parser.add_argument("-t", "--table",
 parser.add_argument('parameters', metavar='parameter', nargs='*',
                     help="host ID password DB file")
 
+def reverse(db, filter_name=None):    
+    # Relations
+    if filter_name == None:
+        relations = db.list_relation_table_names()
+    else:
+        relations = db.list_related_table_names(filter_name)
+
+    if filter_name == None:
+        table_names = db.list_table_names()
+    else:
+        table_names = []
+        for table_name in relations:
+            table_names.append(table_name)
+        
+    texts = []
+    for table_name in table_names:
+        texts.append(f"entity { table_name } {{")
+        columns = db.list_columns(table_name)
+        for column in columns:
+            if column.primary:
+                prefix = "*"
+            elif column.foreign:
+                prefix = "+"
+            else:
+                prefix = ""
+            texts.append(f"{ prefix }`{ column.name }`")
+        texts.append("}}")
+        
+    for table_name in relations:
+        texts.append(f"{ table_name }||..||{ relations[table_name] }")
+        
+    return texts;    
+    
+def write_file(file_name, texts):
+    fo = codecs.open(file_name, encoding='utf-8', mode='w')
+    fo.write("@startuml\n")
+    for text in texts:
+        fo.write(text + "\n")
+    fo.write("@enduml\n")
+    fo.close()
+    
 if __name__ == '__main__':
     args = parser.parse_args()
     
@@ -54,65 +96,28 @@ if __name__ == '__main__':
     
     db_name = args.parameters[3]
     file_name = args.parameters[4]
+    
+    if db_system == DB_MARIADB:
+        db = MariadbDatabase()
+    else:
+        print(f"{ db_system } is not supported yet.")
+        sys.exit(1)
+        
+    db.host = args.parameters[0]
+    db.user = args.parameters[1]
+    db.password = args.parameters[2]
+    db.database = db_name
+    db.port = db_port
          
     # Connect to MariaDB Platform
-    try:
-        conn = mariadb.connect(
-            host = args.parameters[0],
-            user = args.parameters[1],
-            password = args.parameters[2],
-            database = db_name,
-            port = db_port
-        )
-    except mariadb.Error as e:
-        print(f"Error connecting to database: {e}")
+    db.connect()
+    
+    texts = reverse(db, args.table)
+    
+    db.disconnect()
+    
+    if len(texts) == 0:
+        print("Result is empty")
         sys.exit(1)
-    
-    # Gets cursor.
-    cur = conn.cursor()
-    
-    if db_system == DB_MARIADB:
-        cur.execute(
-            "select TABLE_NAME as table_name, TABLE_TYPE as table_type from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA = ? order by TABLE_NAME", (db_name,))
-    
-    table_result = cur.fetchall()
-    count = 0
-    fo = codecs.open(file_name, encoding='utf-8', mode='w')
-    for table_name, table_type in table_result:
-        fo.write(f"[`{ table_name }`]\n")
         
-        # Columns
-        if db_system == DB_MARIADB:
-            cur.execute(
-                "select COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?", (db_name, table_name,))
-            column_result = cur.fetchall()
-            for column_name, column_type, column_key in column_result:
-                if column_key == "PRI":
-                    prefix = "*"
-                elif column_key == "MUL":
-                    prefix = "+"
-                else:
-                    prefix = ""
-            
-                fo.write(f"{ prefix }`{ column_name }`\n")
-                
-        fo.write("\n")
-            
-        count += 1
-        
-    if count == 0:
-        print("Result is empty.")
-        fo.close()
-        conn.close()
-        sys.exit(1)
-    
-    # Relations    
-    if db_system == DB_MARIADB:
-        cur.execute("select TABLE_NAME, REFERENCED_TABLE_NAME from INFORMATION_SCHEMA.KEY_COLUMN_USAGE where REFERENCED_TABLE_SCHEMA = ?", (db_name,))    
-    referenced_result = cur.fetchall()
-    for table_name, referenced_table_name in referenced_result:
-        fo.write(f"`{ table_name }` -- `{ referenced_table_name }`\n")
-    
-    fo.close()
-    conn.close()
-    
+    write_file(file_name, texts)

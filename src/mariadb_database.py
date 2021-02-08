@@ -36,12 +36,15 @@ class MariadbDatabase(Database):
             sys.exit(1)
         return self.connection
     
-    def get_relation_table_names(self):
+    def disconnect(self):
+        self.connection.close()
+    
+    def list_relation_table_names(self):
         cursor = self.connection.cursor()
         sql = """
             select TABLE_NAME, REFERENCED_TABLE_NAME 
-                from INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-                where REFERENCED_TABLE_SCHEMA = ?
+            from INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+            where REFERENCED_TABLE_SCHEMA = ?
             """
         cursor.execute(sql, (self.database,))    
         rows = cursor.fetchall()
@@ -51,8 +54,8 @@ class MariadbDatabase(Database):
             
         return table_names
 
-    def get_related_table_names(self, filter_name):
-        table_names = self.get_relation_table_names()
+    def list_related_table_names(self, filter_name):
+        table_names = self.list_relation_table_names()
         filter_names = {}
         for table_name in table_names:
             if table_name == filter_name or table_names[table_name] == filter_name:
@@ -60,13 +63,13 @@ class MariadbDatabase(Database):
                 
         return filter_names
     
-    def get_table_names(self):
+    def list_table_names(self):
         cursor = self.connection.cursor()
         sql = """
             select TABLE_NAME
-                from INFORMATION_SCHEMA.TABLES 
-                where TABLE_SCHEMA = ? 
-                order by TABLE_NAME
+            from INFORMATION_SCHEMA.TABLES 
+            where TABLE_SCHEMA = ? 
+            order by TABLE_NAME
             """
         cursor.execute(sql, (self.database,))    
         rows = cursor.fetchall()
@@ -76,12 +79,12 @@ class MariadbDatabase(Database):
             
         return table_names
 
-    def get_columns(self, table_name):
+    def list_columns(self, table_name):
         cursor = self.connection.cursor()
         sql = """
             select COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY 
-                from INFORMATION_SCHEMA.COLUMNS 
-                where TABLE_SCHEMA = ? and TABLE_NAME = ?
+            from INFORMATION_SCHEMA.COLUMNS 
+            where TABLE_SCHEMA = ? and TABLE_NAME = ?
             """
         cursor.execute(sql, (self.database, table_name,))    
         rows = cursor.fetchall()

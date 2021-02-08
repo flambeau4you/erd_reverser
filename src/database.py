@@ -29,26 +29,32 @@ class Database:
         """
         pass
     
-    def get_relation_table_names(self):
+    def disconnect(self):
+        """
+        Disconnects 
+        """
+        pass
+    
+    def list_relation_table_names(self):
         """
         Gets all table names with relation information.
         return is ['name which has foreign keys'] = related_name which has primary keys.
         """
         pass
     
-    def get_related_table_names(self, table_name):
+    def list_related_table_names(self, filter_name):
         """
         Gets related table names.
         """
         pass
     
-    def get_table_names(self):
+    def list_table_names(self):
         """
         Gets all table names
         """
         pass
             
-    def get_columns(self, table_name):
+    def list_columns(self, table_name):
         """
         Gets headers.
         """
