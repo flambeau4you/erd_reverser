@@ -16,25 +16,27 @@ class TestErdr(unittest.TestCase):
             col = Column()
             col.name = 'c1'
             col.type = 'varchar(10)'
-            col.primary = True
-            col.foreign = False
+            col.is_primary = True
+            col.is_foreign = False
+            col.is_nullable = False
             columns.append(col)
 
             col = Column()
             col.name = 'c2'
             col.type = 'varchar(10)'
-            col.primary = False
-            col.foreign = True
+            col.is_primary = False
+            col.is_foreign = True
+            col.is_nullable = True
             columns.append(col)
 
             return columns
         
         def list_relation_table_names():
-            table_names = {'t1': 't2'}
+            table_names = {'t1': ['r1', 'r2']}
             return table_names
 
         def list_related_table_names(filter_name):
-            table_names = {filter_name: 't2'}
+            table_names = {filter_name: ['r1', 'r2']}
             return table_names
             
         database = MagicMock()
@@ -44,16 +46,16 @@ class TestErdr(unittest.TestCase):
         database.list_related_table_names = list_related_table_names
         
         texts = erdr.reverse(database)
-        self.assertEqual(texts[0], '[`t1`]')
-        self.assertEqual(texts[1], '*`c1`')
-        self.assertEqual(texts[2], '+`c2`')
-        self.assertEqual(texts[3], '`t1` -- `t2`')
+        self.assertEqual(texts[0], 'entity t1 {')
+        self.assertEqual(texts[1], '  *c1 : varchar(10)')
+        self.assertEqual(texts[2], '  --')
+        self.assertEqual(texts[3], '  c2 : varchar(10) <<FK>>')
+        self.assertEqual(texts[4], '}')
+        self.assertEqual(texts[5], 't1 ||..|| r1')
+        self.assertEqual(texts[6], 't1 ||..|| r2')
 
         texts = erdr.reverse(database, 't1')
-        self.assertEqual(texts[0], '[`t1`]')
-        self.assertEqual(texts[1], '*`c1`')
-        self.assertEqual(texts[2], '+`c2`')
-        self.assertEqual(texts[3], '`t1` -- `t2`')
+        self.assertEqual(texts[0], 'entity t1 {')
 
 if __name__ == '__main__':
     unittest.main()

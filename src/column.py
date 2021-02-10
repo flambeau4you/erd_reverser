@@ -18,5 +18,6 @@ class Column:
     """
     name = None
     type = None
-    primary = False
-    foreign = False
+    is_primary = False
+    is_foreign = False
+    is_nullable = True

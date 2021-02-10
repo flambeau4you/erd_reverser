@@ -16,8 +16,6 @@
 # limitations under the License.
 
 import argparse
-import json
-import re
 import sys
 import codecs
 from mariadb_database import MariadbDatabase 
@@ -47,30 +45,48 @@ def reverse(db, filter_name=None):
     else:
         table_names = []
         for table_name in relations:
-            table_names.append(table_name)
+            try:
+                table_names.index(table_name)
+            except ValueError:
+                table_names.append(table_name)
+            
+            for ref_name in relations[table_name]:
+                try:
+                    table_names.index(ref_name)
+                except ValueError:
+                    table_names.append(ref_name)
         
     texts = []
     for table_name in table_names:
         texts.append(f"entity { table_name } {{")
         columns = db.list_columns(table_name)
+        pk_added = False
         for column in columns:
-            if column.primary:
+            suffix = " <<FK>>" if column.is_foreign else ""
+            if column.is_primary:
                 prefix = "*"
-            elif column.foreign:
-                prefix = "+"
+                pk_added = True
             else:
-                prefix = ""
-            texts.append(f"{ prefix }`{ column.name }`")
-        texts.append("}}")
+                if pk_added:
+                    texts.append("  --")
+                    pk_added = False
+                
+                prefix = "" if column.is_nullable else "*"
+                
+            texts.append(f"  { prefix }{ column.name } : { column.type }{ suffix }")
+        texts.append("}")
         
     for table_name in relations:
-        texts.append(f"{ table_name }||..||{ relations[table_name] }")
+        for ref_name in relations[table_name]:
+            texts.append(f"{ table_name } ||..|| { ref_name }")
         
     return texts;    
     
 def write_file(file_name, texts):
     fo = codecs.open(file_name, encoding='utf-8', mode='w')
     fo.write("@startuml\n")
+    fo.write("hide circle\n")
+    fo.write("skinparam linetype ortho\n")
     for text in texts:
         fo.write(text + "\n")
     fo.write("@enduml\n")

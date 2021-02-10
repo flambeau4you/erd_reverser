@@ -16,6 +16,7 @@ import mariadb
 import sys
 from database import Database
 from column import Column
+from pickle import TRUE
 
 class MariadbDatabase(Database):
     """
@@ -49,8 +50,15 @@ class MariadbDatabase(Database):
         cursor.execute(sql, (self.database,))    
         rows = cursor.fetchall()
         table_names = {}
+        old_name = ""
         for table_name, referenced_table_name in rows:
-            table_names[table_name] = referenced_table_name
+            if table_name != old_name:
+                table_names[table_name] = []
+            try:
+                table_names[table_name].index(referenced_table_name)
+            except ValueError:
+                table_names[table_name].append(referenced_table_name)
+            old_name = table_name
             
         return table_names
 
@@ -58,8 +66,15 @@ class MariadbDatabase(Database):
         table_names = self.list_relation_table_names()
         filter_names = {}
         for table_name in table_names:
-            if table_name == filter_name or table_names[table_name] == filter_name:
+                
+            if table_name == filter_name:
                 filter_names[table_name] = table_names[table_name]
+            else:
+                for ref_name in table_names[table_name]:
+                    if ref_name == filter_name:                        
+                        filter_names[table_name] = []
+                        filter_names[table_name].append(ref_name)
+                        break
                 
         return filter_names
     
@@ -82,20 +97,35 @@ class MariadbDatabase(Database):
     def list_columns(self, table_name):
         cursor = self.connection.cursor()
         sql = """
-            select COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY 
+            select COLUMN_NAME, COLUMN_TYPE, COLUMN_KEY, IS_NULLABLE 
             from INFORMATION_SCHEMA.COLUMNS 
             where TABLE_SCHEMA = ? and TABLE_NAME = ?
             """
         cursor.execute(sql, (self.database, table_name,))    
         rows = cursor.fetchall()
         columns = []
-        for column_name, column_type, column_key in rows:
+        for column_name, column_type, column_key, is_nullable in rows:
             column = Column()
             column.name = column_name
             column.type = column_type
-            column.primary = column_key == 'PRI'
-            column.foreign = column_key == 'MUL'
+            column.is_primary = column_key == 'PRI'
+            column.is_nullable = is_nullable == 'YES'
             columns.append(column)
-            
+
+        # Foreign keys
+        cursor = self.connection.cursor()
+        sql = """
+            select COLUMN_NAME 
+            from INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
+            where REFERENCED_TABLE_SCHEMA = ? and TABLE_NAME = ?
+            """
+        cursor.execute(sql, (self.database, table_name,))    
+        rows = cursor.fetchall()
+        for column_name in rows:
+            for column in columns:
+                if column.name == column_name[0]:
+                    column.is_foreign = True
+                    break
+                
         return columns
 
